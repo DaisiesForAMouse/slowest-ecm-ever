@@ -9,10 +9,13 @@
 #include "stdlib.h"
 #include "time.h"
 #include "unistd.h"
+#include <pthread.h>
 
 #define POLLARD_ITER_MAX 10000000
 #define ECM_CURVE_MAX 25
 #define ECM_INIT_ITER 25000
+
+int done;
 
 struct ecm_info {
   int done;
@@ -118,6 +121,9 @@ int ecm(const mpz_t n, long int iter_max, int curve_count,
   int bound = 0;
   unsigned long long prod = 1;
   while (++bound < iter_max) {
+    if (done)
+      return 0;
+
     if (prod < 1 << 23)
       prod *= bound;
     else {
@@ -144,9 +150,9 @@ int ecm(const mpz_t n, long int iter_max, int curve_count,
 void *ecm_default(void *th) {
   struct ecm_info *info = (struct ecm_info *)th;
   ecm(info->n, ECM_INIT_ITER, 0, info->rstate, info->verbose);
-  if (info->verbose)
-    printf("thread id %ld | done!\n", (long)pthread_self());
-  info->done = 1;
+  /* if (info->verbose) */
+  /*   printf("thread id %ld | done!\n", (long)pthread_self()); */
+  done = 1;
   return NULL;
 }
 
@@ -172,33 +178,35 @@ int get_factor(char* str, int n_threads, int verbose) {
       if (rho_fail) {
         pthread_t threads[n_threads];
         struct ecm_info infos[n_threads];
-        int done = 0;
         for (int i = 0; i < n_threads; ++i) {
+          if (done)
+            break;
+
           infos[i].done = 0;
           infos[i].verbose = verbose;
+
           mpz_init_set(infos[i].n, n);
           gmp_randinit_default(infos[i].rstate);
           gmp_randseed_ui(infos[i].rstate, time(NULL));
-          for (int j = 0; j <= i; ++j)
-            done += infos[j].done;
-          if (done)
-            break;
+
           pthread_create(threads + i, NULL, ecm_default, (void *)(infos + i));
           if (verbose)
             printf("thread %i created\n", i);
           usleep(1250 * 1000);
         }
 
-        while (!done) {
-          usleep(10 * 1000);
-          for (int i = 0; i < n_threads; ++i)
-            done += infos[i].done;
-        }
+        for (int i = 0; i < n_threads; ++i)
+          pthread_join(threads[i], NULL);
+        /* while (!done) { */
+        /*   usleep(10 * 1000); */
+        /*   for (int i = 0; i < n_threads; ++i) */
+        /*     done += infos[i].done; */
+        /* } */
 
-        for (int i = 0; i < n_threads; ++i) {
-          if (!infos[i].done)
-            pthread_cancel(threads[i]);
-        }
+        /* for (int i = 0; i < n_threads; ++i) { */
+        /*   if (!infos[i].done) */
+        /*     pthread_cancel(threads[i]); */
+        /* } */
       }
     }
   }

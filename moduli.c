@@ -1,6 +1,7 @@
 #include "factor.h"
 
 int main(int argc, char **argv) {
+  done = 0;
   int n_threads;
   int verbose;
   switch (argc) {
