@@ -38,4 +38,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # get_factors(433859, 4);

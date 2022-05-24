@@ -9,7 +9,6 @@
 #include "stdlib.h"
 #include "time.h"
 #include "unistd.h"
-#include <pthread.h>
 
 #define POLLARD_ITER_MAX 10000000
 #define ECM_CURVE_MAX 25
@@ -151,7 +150,7 @@ void *ecm_default(void *th) {
   return NULL;
 }
 
-int get_factor(char* str, int n_threads, int verbose) {
+int get_factor(char *str, int n_threads, int verbose) {
   clock_t tic, toc;
 
   mpz_t n;
@@ -184,13 +183,14 @@ int get_factor(char* str, int n_threads, int verbose) {
 
           mpz_init_set(infos[i].n, n);
           gmp_randinit_default(infos[i].rstate);
-          gmp_randseed_ui(infos[i].rstate, time(NULL));
+          unsigned int seed = time(NULL);
+          seed *= (i + 1);
+          gmp_randseed_ui(infos[i].rstate, seed);
 
           pthread_create(threads + i, NULL, ecm_default, (void *)(infos + i));
           num_init += 1;
           if (verbose)
             printf("thread %i created\n", i);
-          usleep(1250 * 1000);
         }
 
         for (int i = 0; i < num_init; ++i)
