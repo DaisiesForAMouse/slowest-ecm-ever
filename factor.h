@@ -18,13 +18,10 @@
 int done;
 
 struct ecm_info {
-  int done;
   int verbose;
   gmp_randstate_t rstate;
   mpz_t n;
 };
-
-clock_t tic, toc;
 
 int trial_division(const mpz_t n) {
   for (int i = 0; i < NUM_PRIMES; ++i) {
@@ -150,13 +147,13 @@ int ecm(const mpz_t n, long int iter_max, int curve_count,
 void *ecm_default(void *th) {
   struct ecm_info *info = (struct ecm_info *)th;
   ecm(info->n, ECM_INIT_ITER, 0, info->rstate, info->verbose);
-  /* if (info->verbose) */
-  /*   printf("thread id %ld | done!\n", (long)pthread_self()); */
   done = 1;
   return NULL;
 }
 
 int get_factor(char* str, int n_threads, int verbose) {
+  clock_t tic, toc;
+
   mpz_t n;
   mpz_init_set_str(n, str, 10);
   gmp_randstate_t rstate_main;
@@ -176,13 +173,13 @@ int get_factor(char* str, int n_threads, int verbose) {
     if (trial_fail) {
       int rho_fail = rho(n, rstate_main, verbose);
       if (rho_fail) {
+        int num_init = 0;
         pthread_t threads[n_threads];
         struct ecm_info infos[n_threads];
         for (int i = 0; i < n_threads; ++i) {
           if (done)
             break;
 
-          infos[i].done = 0;
           infos[i].verbose = verbose;
 
           mpz_init_set(infos[i].n, n);
@@ -190,23 +187,14 @@ int get_factor(char* str, int n_threads, int verbose) {
           gmp_randseed_ui(infos[i].rstate, time(NULL));
 
           pthread_create(threads + i, NULL, ecm_default, (void *)(infos + i));
+          num_init += 1;
           if (verbose)
             printf("thread %i created\n", i);
           usleep(1250 * 1000);
         }
 
-        for (int i = 0; i < n_threads; ++i)
+        for (int i = 0; i < num_init; ++i)
           pthread_join(threads[i], NULL);
-        /* while (!done) { */
-        /*   usleep(10 * 1000); */
-        /*   for (int i = 0; i < n_threads; ++i) */
-        /*     done += infos[i].done; */
-        /* } */
-
-        /* for (int i = 0; i < n_threads; ++i) { */
-        /*   if (!infos[i].done) */
-        /*     pthread_cancel(threads[i]); */
-        /* } */
       }
     }
   }
